@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { FarmerController } from './farmer.controller';
 import { FarmerService } from './farmer.service';
+import { SupabaseService } from '../common/services/supabase.service';
 
 @Module({
-  imports: [ConfigModule],
   controllers: [FarmerController],
-  providers: [FarmerService],
+  providers: [FarmerService, SupabaseService],
+  exports: [FarmerService]
 })
 export class FarmerModule {} 
