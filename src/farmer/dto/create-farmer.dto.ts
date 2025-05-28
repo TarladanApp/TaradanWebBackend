@@ -85,15 +85,3 @@ export class CreateFarmerDto {
   @IsOptional()
   imgurl?: string;
 }
-
-export class LoginFarmerDto {
-  @ApiProperty({ description: 'Çiftçi e-posta adresi' })
-  @IsEmail()
-  @IsNotEmpty()
-  farmer_mail: string;
-
-  @ApiProperty({ description: 'Çiftçi şifresi' })
-  @IsString()
-  @IsNotEmpty()
-  farmer_password: string;
-}

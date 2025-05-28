@@ -2,7 +2,7 @@ import { Controller, Post, Get, Put, Delete, Body, Param, HttpException, HttpSta
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FarmerService } from './farmer.service';
-import { CreateFarmerDto, LoginFarmerDto } from './dto/create-farmer.dto';
+import { CreateFarmerDto } from './dto/create-farmer.dto';
 
 @ApiTags('farmer')
 @Controller('farmer')
@@ -43,21 +43,5 @@ export class FarmerController {
   @Delete(':id')
   async deleteFarmer(@Param('id') id: string) {
     return await this.farmerService.deleteFarmer(id);
-  }
-
-  @Post('login')
-  @ApiOperation({ summary: 'Çiftçi girişi yap' })
-  @ApiResponse({ status: 200, description: 'Giriş başarılı.' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz giriş.' })
-  @ApiResponse({ status: 400, description: 'Geçersiz veri.' })
-  async loginFarmer(@Body() loginData: LoginFarmerDto) {
-    try {
-      return await this.farmerService.loginFarmer(loginData);
-    } catch (error) {
-      throw new HttpException(
-        error.message || 'Giriş yapılırken bir hata oluştu',
-        HttpStatus.UNAUTHORIZED
-      );
-    }
   }
 }

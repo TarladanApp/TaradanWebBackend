@@ -2,8 +2,6 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/services/supabase.service';
 import { CreateFarmerDto } from './dto/create-farmer.dto';
 import { Express } from 'express'; // Express tipini import ediyoruz
-import { LoginFarmerDto } from './dto/create-farmer.dto'; // DTO dosyası aynı yerde
-import { ActivityStatus } from './dto/create-farmer.dto'; // Enum dosyası aynı yerde
 
 @Injectable()
 export class FarmerService {
@@ -61,17 +59,21 @@ export class FarmerService {
       }
 
       const createdFarmer = farmerInsertData[0];
-      const farmerId = createdFarmer.farmer_id;
+      const farmerId = createdFarmer.farmer_id; // Yeni eklenen çiftçinin ID'si
 
       let certificateUrl = '';
 
       // 3. Sertifika dosyasını Supabase Storage'a yükle
       if (farmer_certificates_file && farmerId) {
-        const bucketName = 'farmer-documents';
-        const filePath = `${farmerId}/${farmer_certificates_file.originalname}`;
+        const bucketName = `${farmerId}`; // Bucket adı çiftçi ID'si olacak
+        const filePath = `${farmer_certificates_file.originalname}`; // Dosya yolu sadece dosya adı olacak
 
-        // Service role client ile dosya yükleme
-        const { data: uploadData, error: uploadError } = await this.supabaseService.getServiceClient()
+        // **Önemli:** Bu noktada `bucketName` (yani farmerId) adında bir bucket'ın
+        // Supabase Storage'da mevcut ve doğru izinlere sahip olduğundan emin olmalısınız.
+        // Eğer bucket yoksa veya backend'in anahtarı (service_role gibi) bucket oluşturma
+        // iznine sahip değilse bu yükleme başarısız olur.
+
+        const { data: uploadData, error: uploadError } = await this.supabaseService.getClient()
           .storage
           .from(bucketName)
           .upload(filePath, farmer_certificates_file.buffer, {
@@ -81,56 +83,39 @@ export class FarmerService {
 
         if (uploadError) {
           this.logger.error(`Sertifika yükleme hatası (${bucketName}/${filePath}):`, uploadError);
-          await this.supabaseService.getClient().from('farmer').delete().eq('farmer_id', farmerId);
-          if (userId) {
-            await this.supabaseService.getClient().auth.admin.deleteUser(userId);
-          }
-          throw new Error(`Sertifika yüklenirken hata oluştu: ${uploadError.message}`);
+           await this.supabaseService.getClient().from('farmer').delete().eq('farmer_id', farmerId);
+           if (userId) {
+                await this.supabaseService.getClient().auth.admin.deleteUser(userId);
+           }
+           throw new Error(`Sertifika yüklenirken hata oluştu: ${uploadError.message}`);
         }
 
-        // Yüklenen dosyanın imzalı URL'sini al (100 yıl geçerli)
-        const { data: signedUrlData, error: signedUrlError } = await this.supabaseService.getServiceClient()
+        // Yüklenen dosyanın herkese açık URL'sini al
+        // **Önemli:** Bucket'ın herkese açık (public) erişime izin verdiğinden emin olun.
+        const { data: publicUrlData } = this.supabaseService.getClient()
           .storage
           .from(bucketName)
-          .createSignedUrl(filePath, 315360000); // 100 yıl saniye cinsinden
+          .getPublicUrl(filePath);
 
-        if (signedUrlError) {
-          this.logger.error(`İmzalı URL oluşturma hatası (${bucketName}/${filePath}):`, signedUrlError);
-          // Hata durumunda yüklenen dosyayı ve farmer kaydını temizle
-          await this.supabaseService.getServiceClient().storage.from(bucketName).remove([filePath]);
-          await this.supabaseService.getServiceClient().from('farmer').delete().eq('farmer_id', farmerId);
-          if (userId) {
-            await this.supabaseService.getServiceClient().auth.admin.deleteUser(userId);
-          }
-          throw new Error(`İmzalı URL oluşturulurken hata oluştu: ${signedUrlError.message}`);
+        certificateUrl = publicUrlData.publicUrl;
+        this.logger.debug('Sertifika URL:', certificateUrl);
+
+        // 4. Farmer kaydını sertifika URL'si ile güncelle
+        const { error: updateError } = await this.supabaseService.getClient()
+          .from('farmer')
+          .update({ farmer_certificates: certificateUrl })
+          .eq('farmer_id', farmerId);
+
+        if (updateError) {
+          this.logger.error('Farmer kaydı güncelleme hatası (sertifika URL):', updateError);
+           await this.supabaseService.getClient().from('farmer').delete().eq('farmer_id', farmerId);
+           if (userId) {
+                await this.supabaseService.getClient().auth.admin.deleteUser(userId);
+           }
+           await this.supabaseService.getClient().storage.from(bucketName).remove([filePath]);
+           throw new Error(`Sertifika URL'si güncellenirken hata oluştu: ${updateError.message}`);
         }
 
-        certificateUrl = signedUrlData.signedUrl;
-        this.logger.debug('Sertifika İmzalı URL:', certificateUrl);
-
-        // 4. Sertifika bilgisini farmer_certificate tablosuna ekle
-        const { data: certificateInsertData, error: certificateInsertError } = await this.supabaseService.getServiceClient()
-          .from('farmer_certificate')
-          .insert([
-            {
-              farmer_id: farmerId,
-              images: certificateUrl
-            }
-          ])
-          .select();
-
-        if (certificateInsertError) {
-          this.logger.error('farmer_certificate kaydı hatası:', certificateInsertError);
-          // Hata durumunda yüklenen dosyayı ve farmer kaydını temizle
-          await this.supabaseService.getServiceClient().storage.from(bucketName).remove([filePath]);
-          await this.supabaseService.getServiceClient().from('farmer').delete().eq('farmer_id', farmerId);
-          if (userId) {
-            await this.supabaseService.getServiceClient().auth.admin.deleteUser(userId);
-          }
-          throw new Error(`farmer_certificate kaydı oluşturulurken hata oluştu: ${certificateInsertError.message}`);
-        }
-
-        this.logger.debug('Sertifika bilgisi farmer_certificate tablosuna eklendi:', certificateInsertData[0]);
       }
 
       this.logger.debug('Çiftçi başarıyla oluşturuldu:', createdFarmer);
@@ -225,61 +210,6 @@ export class FarmerService {
       return { success: true, message: 'Çiftçi başarıyla silindi' };
     } catch (error) {
       this.logger.error('Çiftçi silme hatası:', error);
-      throw error;
-    }
-  }
-
-  async loginFarmer(loginData: LoginFarmerDto) {
-    try {
-      this.logger.debug('Çiftçi giriş isteği alındı:', loginData.farmer_mail);
-
-      // 1. Supabase Auth ile giriş yap
-      const { data: authData, error: authError } = await this.supabaseService.getClient()
-        .auth.signInWithPassword({
-          email: loginData.farmer_mail,
-          password: loginData.farmer_password,
-        });
-
-      if (authError) {
-        this.logger.error('Auth giriş hatası:', authError);
-        throw new Error(`Giriş hatası: ${authError.message}`);
-      }
-
-      const userId = authData.user?.id;
-
-      if (!userId) {
-         throw new Error('Auth kullanıcısı bulunamadı.');
-      }
-
-      // 2. Farmer tablosundan aktivite durumunu kontrol et
-      const { data: farmerData, error: farmerError } = await this.supabaseService.getClient()
-        .from('farmer')
-        .select('farmer_activity_status')
-        .eq('auth_id', userId)
-        .single();
-
-      if (farmerError) {
-        this.logger.error('Farmer durumu çekme hatası:', farmerError);
-        throw new Error(`Veritabanı hatası: ${farmerError.message}`);
-      }
-
-      if (!farmerData) {
-           throw new Error('Çiftçi bilgisi bulunamadı.');
-      }
-
-      if (farmerData.farmer_activity_status !== ActivityStatus.Active) {
-        // İsteğe bağlı: Burada kullanıcının oturumunu kapatabilirsiniz
-        // await this.supabaseService.getClient().auth.signOut();
-        this.logger.warn(`Aktif olmayan çiftçi girişi engellendi: ${loginData.farmer_mail}`);
-        throw new Error('Hesabınız aktif değil. Lütfen yöneticinizle iletişime geçin.');
-      }
-
-      this.logger.debug('Çiftçi başarıyla giriş yaptı:', loginData.farmer_mail);
-      // Başarılı giriş durumunda Auth verilerini döndürebilirsiniz veya ihtiyacınız olan başka bilgileri
-      return { success: true, message: 'Giriş başarılı', user: authData.user, farmer: farmerData };
-
-    } catch (error) {
-      this.logger.error('Çiftçi giriş genel hatası:', error);
       throw error;
     }
   }
