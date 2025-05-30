@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsNotEmpty, IsOptional, MinLength, IsEnum } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsOptional, MinLength, IsEnum, IsNumber, IsInt } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { Express } from 'express';
 
 export enum ActivityStatus {
   Active = 'Active',
@@ -24,9 +26,10 @@ export class CreateFarmerDto {
   farmer_last_name: string;
 
   @ApiProperty({ description: 'Çiftçinin yaşı' })
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  farmer_age: string;
+  @Transform(({ value }) => Number(value))
+  farmer_age: number;
 
   @ApiProperty({ description: 'Çiftçinin adresi' })
   @IsString()
@@ -43,10 +46,10 @@ export class CreateFarmerDto {
   @IsNotEmpty()
   farmer_town: string;
 
-  @ApiProperty({ description: 'Çiftçinin mahallesi' })
+  @ApiProperty({ description: 'Çiftçi mahallesi' })
   @IsString()
   @IsNotEmpty()
-  famer_neighbourhood: string;
+  farmer_neighbourhood: string;
 
   @ApiProperty({ description: 'Çiftçinin telefon numarası' })
   @IsString()
@@ -58,11 +61,6 @@ export class CreateFarmerDto {
   @IsEmail()
   @IsNotEmpty()
   farmer_mail: string;
-
-  @ApiProperty({ description: 'Çiftçi sertifikaları', required: false })
-  @IsString()
-  @IsOptional()
-  farmer_certificates?: string;
 
   @ApiProperty({ description: 'Çiftçi aktivite durumu', enum: ActivityStatus })
   @IsEnum(ActivityStatus)

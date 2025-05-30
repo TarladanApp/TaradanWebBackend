@@ -24,7 +24,7 @@ export class Farmer {
   farmer_town: string;
 
   @Column()
-  famer_neighbourhood: string;
+  farmer_neighbourhood: string;
 
   @Column()
   farmer_phone_number: string;
