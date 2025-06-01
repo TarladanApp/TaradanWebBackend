@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
-import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
-import { JwtStrategy } from './jwt.strategy';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { SupabaseService } from '../common/services/supabase.service';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET_KEY,
+      secret: 'dummy-secret', // Supabase kendi verification yapar
       signOptions: { expiresIn: '1d' },
     }),
   ],
-  providers: [JwtStrategy, JwtAuthGuard],
-  exports: [JwtAuthGuard],
+  providers: [JwtStrategy, SupabaseService],
+  exports: [JwtModule],
 })
 export class AuthModule {} 

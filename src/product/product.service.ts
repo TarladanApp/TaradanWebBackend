@@ -1,114 +1,315 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../common/services/supabase.service';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductService {
-  private supabase: SupabaseClient;
-  private readonly MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  private readonly ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  constructor(private readonly supabaseService: SupabaseService) {}
 
-  constructor(
-    private supabaseService: SupabaseService,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
-  ) {
-    this.supabase = this.supabaseService.getClient();
-  }
-
-  async createProduct(createProductDto: CreateProductDto, farmerId: string) {
-    const product = this.productRepository.create({
-      ...createProductDto,
-      farmer_id: farmerId,
+  async create(createProductDto: CreateProductDto, farmerId: string, image?: Express.Multer.File) {
+    console.log('=== Product Service Create Debug ===');
+    console.log('Image received:', {
+      originalname: image?.originalname,
+      mimetype: image?.mimetype,
+      size: image?.size,
+      buffer_length: image?.buffer?.length
     });
 
-    const savedProduct = await this.productRepository.save(product);
-    return savedProduct;
-  }
+    // Önce ürünü veritabanına ekleyelim
+    const { data: productData, error: productError } = await this.supabaseService.getServiceClient()
+      .from('products')
+      .insert([
+        {
+          farmer_id: farmerId,
+          product_name: createProductDto.product_name,
+          product_katalog_name: createProductDto.product_katalog_name,
+          farmer_price: createProductDto.farmer_price,
+          stock_quantity: createProductDto.stock_quantity,
+          image_url: null, // İlk başta null
+          tarladan_commission: 5, // Varsayılan komisyon oranı
+          tarladan_price: Number(createProductDto.farmer_price) * 1.05, // Komisyon dahil fiyat
+        },
+      ])
+      .select()
+      .single();
 
-  async uploadProductImage(productId: string, file: Express.Multer.File, farmerId: string) {
-    // Ürünün var olduğunu ve çiftçiye ait olduğunu kontrol et
-    const product = await this.productRepository.findOne({
-      where: { id: productId, farmer_id: farmerId },
-    });
+    if (productError) throw productError;
 
-    if (!product) {
-      throw new NotFoundException('Ürün bulunamadı veya bu ürünü düzenleme yetkiniz yok.');
-    }
+    let imageUrl = null;
+    const productId = productData.id;
+    console.log('Product created with ID:', productId);
 
-    // Dosya boyutu kontrolü
-    if (file.size > this.MAX_FILE_SIZE) {
-      throw new BadRequestException('Dosya boyutu 5MB\'dan küçük olmalıdır.');
-    }
-
-    // Dosya tipi kontrolü
-    if (!this.ALLOWED_FILE_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException('Sadece JPEG, PNG ve WebP formatları desteklenmektedir.');
-    }
-
-    try {
-      // Resmi Supabase Storage'a yükle
-      const fileExt = file.originalname.split('.').pop();
-      const fileName = `${productId}.${fileExt}`;
-      const filePath = `product-images/${fileName}`;
-
-      const { data, error } = await this.supabase.storage
-        .from('products')
-        .upload(filePath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
+    // Eğer resim yüklendiyse, storage'a yükle ve imzalı URL oluştur
+    if (image && productId) {
+      try {
+        const bucketName = 'product-images';
+        const fileExt = image.originalname.split('.').pop();
+        const filePath = `${productId}.${fileExt}`; // Ürün ID'si ile kaydet
+        
+        console.log('Uploading to storage:', {
+          bucketName,
+          filePath,
+          fileSize: image.buffer.length,
+          contentType: image.mimetype
         });
 
+        // Service role client ile dosya yükleme
+        const { data: uploadData, error: uploadError } = await this.supabaseService.getServiceClient()
+          .storage
+          .from(bucketName)
+          .upload(filePath, image.buffer, {
+            contentType: image.mimetype,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(`Resim yüklenirken hata oluştu: ${uploadError.message}`);
+        }
+
+        console.log('Upload successful:', uploadData);
+
+        // 50 yıllık imzalı URL oluştur (315360000 saniye = 10 yıl, 1576800000 = 50 yıl)
+        const { data: signedUrlData, error: signedUrlError } = await this.supabaseService.getServiceClient()
+          .storage
+          .from(bucketName)
+          .createSignedUrl(filePath, 1576800000); // 50 yıl
+
+        if (signedUrlError) {
+          console.error('Signed URL error:', signedUrlError);
+          // Hata durumunda yüklenen dosyayı temizle
+          await this.supabaseService.getServiceClient().storage.from(bucketName).remove([filePath]);
+          throw new Error(`İmzalı URL oluşturulurken hata oluştu: ${signedUrlError.message}`);
+        }
+
+        imageUrl = signedUrlData.signedUrl;
+        console.log('Signed URL created:', imageUrl);
+
+        // Ürünün image_url'ini güncelle
+        const { data: updatedData, error: updateError } = await this.supabaseService.getServiceClient()
+          .from('products')
+          .update({ image_url: imageUrl })
+          .eq('id', productId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Database update error:', updateError);
+          // Hata durumunda yüklenen dosyayı temizle
+          await this.supabaseService.getServiceClient().storage.from(bucketName).remove([filePath]);
+          throw updateError;
+        }
+
+        console.log('Product updated with image URL');
+        return updatedData;
+      } catch (error) {
+        console.error('Resim yükleme hatası:', error);
+        // Resim yükleme başarısızsa bile ürün oluşturulmuş olacak
+        return productData;
+      }
+    }
+
+    console.log('No image provided, returning product without image');
+    return productData;
+  }
+
+  async findAllByFarmer(farmerId: string) {
+    const { data, error } = await this.supabaseService.getServiceClient()
+      .from('products')
+      .select('*')
+      .eq('farmer_id', farmerId);
+
+    if (error) throw error;
+    return data;
+  }
+
+  async findOne(id: string) {
+    console.log('=== Product findOne Debug ===');
+    console.log('Product ID:', id);
+    
+    try {
+      const { data, error } = await this.supabaseService.getServiceClient()
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+      console.log('Supabase query result:', { data, error });
+
       if (error) {
-        throw new Error('Resim yüklenirken bir hata oluştu: ' + error.message);
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      if (!data) {
+        console.log('Product not found');
+        throw new NotFoundException('Ürün bulunamadı');
+      }
+      
+      console.log('Product found:', data);
+    return data;
+    } catch (error) {
+      console.error('findOne error:', error);
+      throw error;
+    }
+  }
+
+  async update(id: string, updateProductDto: UpdateProductDto, farmerId: string, image?: Express.Multer.File) {
+    console.log('=== Product Update Debug ===');
+    console.log('Product ID:', id);
+    console.log('Farmer ID from request:', farmerId);
+    console.log('Farmer ID type:', typeof farmerId);
+    
+    const product = await this.findOne(id);
+    console.log('Product farmer_id:', product.farmer_id);
+    console.log('Product farmer_id type:', typeof product.farmer_id);
+    
+    // String ve number karşılaştırması için == kullan
+    if (product.farmer_id != farmerId) {
+      console.log('Access denied - farmer_id mismatch');
+      throw new Error('Bu ürünü düzenleme yetkiniz yok');
+    }
+
+    console.log('Access granted - updating product');
+    let imageUrl = product.image_url;
+    
+    // Eğer yeni resim yüklendiyse
+    if (image) {
+      try {
+        const bucketName = 'product-images';
+        const fileExt = image.originalname.split('.').pop();
+        const filePath = `${id}.${fileExt}`; // Ürün ID'si ile kaydet
+
+        // Service role client ile dosya yükleme
+        const { data: uploadData, error: uploadError } = await this.supabaseService.getServiceClient()
+          .storage
+          .from(bucketName)
+          .upload(filePath, image.buffer, {
+            contentType: image.mimetype,
+            upsert: true, // Eski dosyayı üzerine yaz
+          });
+
+        if (uploadError) {
+          throw new Error(`Resim yüklenirken hata oluştu: ${uploadError.message}`);
+        }
+
+        // 50 yıllık imzalı URL oluştur
+        const { data: signedUrlData, error: signedUrlError } = await this.supabaseService.getServiceClient()
+          .storage
+          .from(bucketName)
+          .createSignedUrl(filePath, 1576800000); // 50 yıl
+
+        if (signedUrlError) {
+          throw new Error(`İmzalı URL oluşturulurken hata oluştu: ${signedUrlError.message}`);
+        }
+
+        imageUrl = signedUrlData.signedUrl;
+      } catch (error) {
+        console.error('Resim güncelleme hatası:', error);
+        // Resim güncelleme başarısızsa eski URL'i kullan
+      }
+    }
+
+    const { data, error } = await this.supabaseService.getServiceClient()
+      .from('products')
+      .update({
+        product_name: updateProductDto.product_name,
+        product_katalog_name: updateProductDto.product_katalog_name,
+        farmer_price: updateProductDto.farmer_price,
+        stock_quantity: updateProductDto.stock_quantity,
+        image_url: imageUrl,
+        tarladan_price: Number(updateProductDto.farmer_price) * 1.05, // Komisyon oranını düzelttim
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async remove(id: string, farmerId: string) {
+    try {
+      console.log('=== Product Remove Debug ===');
+      console.log('Product ID:', id);
+      console.log('Farmer ID from request:', farmerId);
+      console.log('Farmer ID type:', typeof farmerId);
+      
+    const product = await this.findOne(id);
+      console.log('Product farmer_id:', product.farmer_id);
+      console.log('Product farmer_id type:', typeof product.farmer_id);
+    
+      // String ve number karşılaştırması için == kullan
+      if (product.farmer_id != farmerId) {
+        console.log('Access denied - farmer_id mismatch');
+      throw new Error('Bu ürünü silme yetkiniz yok');
+    }
+
+      console.log('Access granted - deleting product');
+      
+      // Önce storage'dan resmi sil (eğer varsa)
+      if (product.image_url) {
+        try {
+          const bucketName = 'product-images';
+          console.log('Attempting to delete image from storage...');
+          
+          // Storage'daki dosyaları listele ve product ID ile eşleşeni bul
+          const { data: files, error: listError } = await this.supabaseService.getServiceClient()
+            .storage
+            .from(bucketName)
+            .list('', {
+              limit: 1000,
+              search: id
+            });
+
+          if (listError) {
+            console.error('Error listing files:', listError);
+          } else if (files && files.length > 0) {
+            // Product ID ile başlayan dosyaları bul ve sil
+            const filesToDelete = files
+              .filter(file => file.name.startsWith(id))
+              .map(file => file.name);
+            
+            if (filesToDelete.length > 0) {
+              console.log('Files to delete:', filesToDelete);
+              
+              const { error: deleteError } = await this.supabaseService.getServiceClient()
+                .storage
+                .from(bucketName)
+                .remove(filesToDelete);
+
+              if (deleteError) {
+                console.error('Error deleting files from storage:', deleteError);
+                // Storage silme hatası olursa devam et, sadece logla
+              } else {
+                console.log('Image files deleted successfully from storage');
+              }
+            } else {
+              console.log('No files found to delete for product ID:', id);
+            }
+          }
+        } catch (storageError) {
+          console.error('Storage deletion error:', storageError);
+          // Storage hatası durumunda devam et
+        }
       }
 
-      // Storage'dan public URL al
-      const { data: { publicUrl } } = this.supabase.storage
-        .from('products')
-        .getPublicUrl(filePath);
+      // Sonra veritabanından ürünü sil
+      const { error } = await this.supabaseService.getServiceClient()
+      .from('products')
+      .delete()
+      .eq('id', id);
 
-      // Ürünün image_url'ini güncelle
-      product.image_url = publicUrl;
-      await this.productRepository.save(product);
-
-      return { image_url: publicUrl };
+      if (error) {
+        console.error('Delete error from Supabase:', error);
+        throw new Error(`Supabase delete error: ${error.message}`);
+      }
+      
+      console.log('Product deleted successfully');
+    return { message: 'Ürün başarıyla silindi' };
     } catch (error) {
-      throw new Error('Resim yükleme işlemi başarısız oldu: ' + error.message);
+      console.error('Remove method error:', error);
+      throw error;
     }
-  }
-
-  // Ürünleri listeleme (belirli bir çiftçiye ait ürünler)
-  async getProductsByFarmerId(farmerId: string) {
-    return this.productRepository.find({
-      where: { farmer_id: farmerId },
-    });
-  }
-
-  // Ürün güncelleme
-  async updateProduct(productId: string, updateData: Partial<CreateProductDto>) {
-    const product = await this.productRepository.findOne({
-      where: { id: productId },
-    });
-
-    if (!product) {
-      throw new NotFoundException('Ürün bulunamadı.');
-    }
-
-    Object.assign(product, updateData);
-    return this.productRepository.save(product);
-  }
-
-  // Ürün silme
-  async deleteProduct(productId: string) {
-    const result = await this.productRepository.delete(productId);
-    if (result.affected === 0) {
-      throw new NotFoundException('Ürün bulunamadı.');
-    }
-    return { success: true };
   }
 } 
