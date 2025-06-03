@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Delete, Body, Param, HttpException, HttpStatus, UseInterceptors, UploadedFile, UploadedFiles, BadRequestException, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Param, HttpException, HttpStatus, UseInterceptors, UploadedFile, UploadedFiles, BadRequestException, UseGuards, Req, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { FarmerService } from './farmer.service';
@@ -365,6 +365,80 @@ export class FarmerController {
     } catch (error: any) {
       console.error('Update auth ID error:', error);
       return { success: false, message: error.message };
+    }
+  }
+
+  // Gelir raporlarını getir
+  @Get('income-reports')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Farmer gelir raporlarını getir' })
+  async getFarmerIncomeReports(
+    @Req() req: any, 
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    try {
+      const farmerId = req.user.farmerId;
+      console.log('=== Get Farmer Income Reports ===');
+      console.log('Farmer ID:', farmerId);
+      console.log('Start Date:', startDate);
+      console.log('End Date:', endDate);
+      
+      return await this.farmerService.getFarmerIncomeReports(farmerId, startDate, endDate);
+    } catch (error: any) {
+      console.error('Get income reports error:', error);
+      throw new HttpException(
+        error.message || 'Gelir raporları getirilirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  // Günlük gelir raporu getir
+  @Get('income-reports/daily/:date')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Farmer günlük gelir raporu getir' })
+  async getDailyIncomeReports(
+    @Req() req: any,
+    @Param('date') date: string
+  ) {
+    try {
+      const farmerId = req.user.farmerId;
+      console.log('=== Get Daily Income Report ===');
+      console.log('Farmer ID:', farmerId);
+      console.log('Date:', date);
+      
+      return await this.farmerService.getDailyIncomeReports(farmerId, date);
+    } catch (error: any) {
+      console.error('Get daily income report error:', error);
+      throw new HttpException(
+        error.message || 'Günlük gelir raporu getirilirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  // Test endpoint'i - Gelir raporları (auth bypass)
+  @Get('income-reports/test/:farmerId')
+  @ApiOperation({ summary: 'Test - Farmer gelir raporları getir (auth bypass)' })
+  async getFarmerIncomeReportsTest(
+    @Param('farmerId') farmerId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    try {
+      console.log('=== Test Get Farmer Income Reports ===');
+      console.log('Farmer ID:', farmerId);
+      console.log('Start Date:', startDate);
+      console.log('End Date:', endDate);
+      
+      return await this.farmerService.getFarmerIncomeReports(farmerId, startDate, endDate);
+    } catch (error: any) {
+      console.error('Test get income reports error:', error);
+      throw new HttpException(
+        error.message || 'Gelir raporları getirilirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
     }
   }
 }

@@ -134,6 +134,12 @@ export class OrderService {
         throw new Error('Sipariş durumu güncellenirken hata oluştu: ' + error.message);
       }
 
+      // 🔄 Sipariş Hazırlandığında Gelir Aktarımı
+      if (updateDto.status === 'hazırlandı') {
+        console.log('Sipariş hazırlandı, gelir aktarımı yapılıyor...');
+        await this.transferIncomeToFarmer(existingOrder);
+      }
+
       console.log('Order status updated successfully:', data);
       return { 
         success: true, 
@@ -143,6 +149,93 @@ export class OrderService {
 
     } catch (error) {
       console.error('Service error in updateOrderStatus:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sipariş hazırlandığında farmer'a gelir aktarımı yapar
+   * @param orderProduct Hazırlanan sipariş ürün bilgileri
+   */
+  private async transferIncomeToFarmer(orderProduct: any): Promise<void> {
+    try {
+      console.log('Gelir aktarımı başlatılıyor:', orderProduct);
+
+      // Farmer'ın gelir tutarını hesapla (total_product_price, farmer'ın alacağı tutar)
+      const productIncome = orderProduct.total_product_price;
+      
+      // farmer_product_income tablosuna kayıt ekle
+      const { data: incomeData, error: incomeError } = await this.supabaseService.getServiceClient()
+        .from('farmer_product_income')
+        .insert([
+          {
+            order_prduct_id: orderProduct.order_product_id, // Tablodaki yazım hatasını koruyoruz
+            product_id: orderProduct.product_id,
+            farmer_id: orderProduct.farmer_id,
+            farmer_name: orderProduct.farmer_name,
+            product_name: orderProduct.product_name,
+            product_quantity: orderProduct.unit_quantity,
+            product_income: productIncome,
+            created_at: new Date().toISOString() // Tarih ekliyoruz
+          }
+        ])
+        .select();
+
+      if (incomeError) {
+        console.error('Gelir aktarımı hatası:', incomeError);
+        throw new Error(`Gelir aktarımı yapılırken hata oluştu: ${incomeError.message}`);
+      }
+
+      console.log('Gelir aktarımı başarıyla tamamlandı:', incomeData);
+
+      // Ürün stok miktarını güncelle (sipariş edilen miktar kadar azalt)
+      await this.updateProductStock(orderProduct.product_id, orderProduct.unit_quantity);
+
+    } catch (error) {
+      console.error('transferIncomeToFarmer error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ürün stok miktarını günceller
+   * @param productId Ürün ID
+   * @param soldQuantity Satılan miktar
+   */
+  private async updateProductStock(productId: string, soldQuantity: number): Promise<void> {
+    try {
+      console.log('Stok güncelleniyor:', { productId, soldQuantity });
+
+      // Önce mevcut stok miktarını al
+      const { data: productData, error: getProductError } = await this.supabaseService.getServiceClient()
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', productId)
+        .single();
+
+      if (getProductError || !productData) {
+        console.error('Ürün bulunamadı:', getProductError);
+        return; // Ürün bulunamazsa stok güncellemesini pas geç
+      }
+
+      const currentStock = productData.stock_quantity;
+      const newStock = Math.max(0, currentStock - soldQuantity); // Stok negatif olamaz
+
+      // Stok miktarını güncelle
+      const { error: updateStockError } = await this.supabaseService.getServiceClient()
+        .from('products')
+        .update({ stock_quantity: newStock })
+        .eq('id', productId);
+
+      if (updateStockError) {
+        console.error('Stok güncelleme hatası:', updateStockError);
+        throw new Error(`Stok güncellenirken hata oluştu: ${updateStockError.message}`);
+      }
+
+      console.log(`Stok güncellendi: ${currentStock} -> ${newStock} (${soldQuantity} adet satıldı)`);
+
+    } catch (error) {
+      console.error('updateProductStock error:', error);
       throw error;
     }
   }

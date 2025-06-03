@@ -796,4 +796,128 @@ export class FarmerService {
     console.log('Auth ID başarıyla güncellendi');
     return data;
   }
+
+  /**
+   * Farmer'ın gelir raporlarını getirir
+   * @param farmerId Farmer ID
+   * @param startDate Başlangıç tarihi (isteğe bağlı)
+   * @param endDate Bitiş tarihi (isteğe bağlı)
+   */
+  async getFarmerIncomeReports(farmerId: string, startDate?: string, endDate?: string) {
+    try {
+      this.logger.debug(`Gelir raporları getiriliyor. Farmer ID: ${farmerId}`);
+
+      let query = this.supabaseService.getServiceClient()
+        .from('farmer_product_income')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .order('id', { ascending: false });
+
+      // Tarih filtresi varsa ve created_at alanı varsa ekle
+      if (startDate || endDate) {
+        // Önce tabloda created_at alanının varlığını kontrol et
+        const { data: sampleData, error: sampleError } = await this.supabaseService.getServiceClient()
+          .from('farmer_product_income')
+          .select('created_at')
+          .eq('farmer_id', farmerId)
+          .limit(1);
+
+        if (!sampleError && sampleData && sampleData.length > 0 && sampleData[0].created_at) {
+          // created_at alanı var, tarih filtresi uygula
+          if (startDate) {
+            query = query.gte('created_at', startDate);
+          }
+          if (endDate) {
+            query = query.lte('created_at', endDate);
+          }
+          this.logger.debug('Tarih filtresi uygulandı');
+        } else {
+          this.logger.warn('created_at alanı bulunamadı, tarih filtresi atlanıyor');
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        this.logger.error('Gelir raporları alma hatası:', error);
+        throw new Error(`Gelir raporları alınamadı: ${error.message}`);
+      }
+
+      // Toplam geliri hesapla
+      const totalIncome = data?.reduce((sum, record) => sum + parseFloat(record.product_income || '0'), 0) || 0;
+
+      // Ürün bazında gelir özeti
+      const productSummary = data?.reduce((acc, record) => {
+        const productName = record.product_name;
+        if (!acc[productName]) {
+          acc[productName] = {
+            product_name: productName,
+            total_quantity: 0,
+            total_income: 0,
+            order_count: 0
+          };
+        }
+        acc[productName].total_quantity += parseInt(record.product_quantity || '0');
+        acc[productName].total_income += parseFloat(record.product_income || '0');
+        acc[productName].order_count += 1;
+        return acc;
+      }, {});
+
+      this.logger.debug('Gelir raporları başarıyla alındı');
+      
+      return {
+        income_records: data || [],
+        total_income: totalIncome,
+        product_summary: Object.values(productSummary || {}),
+        record_count: data?.length || 0
+      };
+    } catch (error) {
+      this.logger.error('Gelir raporları getirme hatası:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Farmer'ın belirli bir tarihteki gelir özetini getirir
+   * @param farmerId Farmer ID
+   * @param date Tarih (YYYY-MM-DD formatında)
+   */
+  async getDailyIncomeReports(farmerId: string, date: string) {
+    try {
+      this.logger.debug(`Günlük gelir raporu getiriliyor. Farmer ID: ${farmerId}, Tarih: ${date}`);
+
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+
+      const { data, error } = await this.supabaseService.getServiceClient()
+        .from('farmer_product_income')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('id', { ascending: false });
+
+      if (error) {
+        this.logger.error('Günlük gelir raporu alma hatası:', error);
+        throw new Error(`Günlük gelir raporu alınamadı: ${error.message}`);
+      }
+
+      const totalIncome = data?.reduce((sum, record) => sum + parseFloat(record.product_income || '0'), 0) || 0;
+
+      this.logger.debug('Günlük gelir raporu başarıyla alındı');
+      
+      return {
+        date: date,
+        income_records: data || [],
+        total_income: totalIncome,
+        record_count: data?.length || 0
+      };
+    } catch (error) {
+      this.logger.error('Günlük gelir raporu getirme hatası:', error);
+      throw error;
+    }
+  }
 }

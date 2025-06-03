@@ -1,7 +1,8 @@
-import { Controller, Get, Patch, Param, Body, UseGuards, Request, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Request, HttpException, HttpStatus, Put } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ApiOperation } from '@nestjs/swagger';
 
 @Controller('order')
 @UseGuards(JwtAuthGuard)
@@ -72,6 +73,30 @@ export class OrderController {
         throw error; // HttpException'ı olduğu gibi ilet
       }
       
+      throw new HttpException(
+        error.message || 'Sipariş durumu güncellenirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  @Put('test/status/:orderProductId/:farmerId')
+  @ApiOperation({ summary: 'Test - Sipariş durumu güncelle (auth bypass)' })
+  async updateOrderStatusTest(
+    @Param('orderProductId') orderProductId: string,
+    @Param('farmerId') farmerId: string,
+    @Body() updateDto: UpdateOrderStatusDto
+  ) {
+    try {
+      console.log('=== Test Update Order Status ===');
+      console.log('Order Product ID:', orderProductId);
+      console.log('Farmer ID:', farmerId);
+      console.log('New Status:', updateDto.status);
+      
+      const result = await this.orderService.updateOrderStatus(orderProductId, farmerId, updateDto);
+      return result;
+    } catch (error: any) {
+      console.error('Test update order status error:', error);
       throw new HttpException(
         error.message || 'Sipariş durumu güncellenirken hata oluştu',
         HttpStatus.BAD_REQUEST
