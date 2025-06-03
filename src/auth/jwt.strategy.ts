@@ -40,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       const user = {
         id: userId,
       email: payload.email,
-        farmer_id: farmerData.farmer_id,
+        farmerId: farmerData.farmer_id,
         farmer_name: farmerData.farmer_name,
         farmer_last_name: farmerData.farmer_last_name,
       };

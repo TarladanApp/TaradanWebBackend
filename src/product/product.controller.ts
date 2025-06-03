@@ -6,7 +6,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('product')
-// @UseGuards(JwtAuthGuard) // Geçici olarak devre dışı
+@UseGuards(JwtAuthGuard) // JWT guard'ı etkinleştir
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
@@ -35,8 +35,9 @@ export class ProductController {
     console.log('stock_quantity type:', typeof productData.stock_quantity);
     
     try {
-      // Geçici farmer_id
-      const result = await this.productService.create(productData, '46', file);
+      // Giriş yapan farmer'ın ID'sini kullan
+      const farmerId = req.user.farmerId.toString();
+      const result = await this.productService.create(productData, farmerId, file);
       console.log('Service result:', result);
       return result;
     } catch (error) {
@@ -48,8 +49,9 @@ export class ProductController {
   @Get()
   async findAllByFarmer(@Request() req) {
     console.log('User from request:', req.user); // Debug için
-    // Geçici farmer_id
-    return this.productService.findAllByFarmer('46');
+    // Giriş yapan farmer'ın ürünlerini getir
+    const farmerId = req.user.farmerId.toString();
+    return this.productService.findAllByFarmer(farmerId);
   }
 
   @Get(':id')
@@ -77,12 +79,12 @@ export class ProductController {
       stock_quantity: updateProductDto.stock_quantity ? Number(updateProductDto.stock_quantity) : undefined,
     };
     
-    // Farmer ID'yi number olarak geç
-    const farmerId = 46;
+    // Giriş yapan farmer'ın ID'sini kullan
+    const farmerId = req.user.farmerId.toString();
     console.log('Using farmer ID:', farmerId);
     
     try {
-      const result = await this.productService.update(id, productData, farmerId.toString(), file);
+      const result = await this.productService.update(id, productData, farmerId, file);
       console.log('Update successful:', result);
       return result;
     } catch (error) {
@@ -105,12 +107,12 @@ export class ProductController {
     console.log('Product ID:', id);
     console.log('User from request:', req.user);
     
-    // Farmer ID'yi number olarak geç
-    const farmerId = 46;
+    // Giriş yapan farmer'ın ID'sini kullan
+    const farmerId = req.user.farmerId.toString();
     console.log('Using farmer ID:', farmerId);
     
     try {
-      const result = await this.productService.remove(id, farmerId.toString());
+      const result = await this.productService.remove(id, farmerId);
       console.log('Delete successful:', result);
       return result;
     } catch (error) {

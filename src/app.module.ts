@@ -9,6 +9,7 @@ import { FarmerModule } from './farmer/farmer.module';
 import { SupabaseService } from './common/services/supabase.service';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
+import { OrderModule } from './order/order.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from './product/entities/product.entity';
 import { Farmer } from './farmer/entities/farmer.entity';
@@ -34,7 +35,8 @@ import { User } from './auth/entities/user.entity';
     }),
     FarmerModule,
     AuthModule,
-    ProductModule
+    ProductModule,
+    OrderModule
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService, SupabaseService],
