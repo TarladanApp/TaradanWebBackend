@@ -1,4 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { FarmerActivityStatus } from '../enums/farmer-activity-status.enum';
+import { FarmerStoreActivity } from '../enums/farmer-store-activity.enum';
 
 @Entity('farmer')
 export class Farmer {
@@ -35,8 +37,21 @@ export class Farmer {
   @Column()
   farmer_password: string;
 
-  @Column()
-  farmer_activity_status: string;
+  @Column({
+    name: 'farmer_activity_status',
+    type: 'enum',
+    enum: FarmerActivityStatus,
+    default: FarmerActivityStatus.Active
+  })
+  farmer_activity_status: FarmerActivityStatus;
+
+  @Column({
+    name: 'farmer_store_activity',
+    type: 'enum',
+    enum: FarmerStoreActivity,
+    default: FarmerStoreActivity.Active
+  })
+  farmer_store_activity: FarmerStoreActivity;
 
   @Column()
   farm_name: string;
@@ -44,7 +59,10 @@ export class Farmer {
   @Column()
   farmer_tc_no: string;
 
-  @Column({ nullable: true })
+  @Column({ 
+    name: 'imgurl',
+    nullable: true 
+  })
   imgurl: string;
 
   @Column()

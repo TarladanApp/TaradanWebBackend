@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SupabaseService } from '../common/services/supabase.service';
+import { AuthService } from './auth.service';
+import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
@@ -12,7 +14,8 @@ import { SupabaseService } from '../common/services/supabase.service';
       signOptions: { expiresIn: '1d' },
     }),
   ],
-  providers: [JwtStrategy, SupabaseService],
-  exports: [JwtModule],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy, SupabaseService],
+  exports: [JwtModule, AuthService],
 })
 export class AuthModule {} 

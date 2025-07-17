@@ -46,6 +46,22 @@ export class ProductController {
     }
   }
 
+  @Get('debug/table-test')
+  async testTableStructure(@Request() req) {
+    console.log('=== Testing Table Structure ===');
+    const farmerId = req.user.farmerId.toString();
+    console.log('Farmer ID:', farmerId);
+    
+    try {
+      // Basit bir select sorgusu ile tablo yapısını test et
+      const result = await this.productService.testTableStructure(farmerId);
+      return result;
+    } catch (error) {
+      console.error('Table structure test error:', error);
+      return { error: error.message, details: error };
+    }
+  }
+
   @Get()
   async findAllByFarmer(@Request() req) {
     console.log('User from request:', req.user); // Debug için

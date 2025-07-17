@@ -8,6 +8,11 @@ export enum ActivityStatus {
   NonActive = 'NonActive'
 }
 
+export enum StoreActivityStatus {
+  Active = 'active',
+  NonActive = 'nonactive'
+}
+
 export class CreateFarmerDto {
   @ApiProperty({ description: 'Çiftçi şifresi' })
   @IsString()
@@ -66,6 +71,11 @@ export class CreateFarmerDto {
   @IsEnum(ActivityStatus)
   @IsNotEmpty()
   farmer_activity_status: ActivityStatus;
+
+  @ApiProperty({ description: 'Çiftçi mağaza durumu', enum: StoreActivityStatus })
+  @IsEnum(StoreActivityStatus)
+  @IsOptional()
+  farmer_store_activity?: StoreActivityStatus;
 
   @ApiProperty({ description: 'Çiftlik adı' })
   @IsString()

@@ -3,8 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthController } from './auth/auth.controller';
-import { AuthService } from './auth.service';
 import { FarmerModule } from './farmer/farmer.module';
 import { SupabaseService } from './common/services/supabase.service';
 import { AuthModule } from './auth/auth.module';
@@ -13,7 +11,7 @@ import { OrderModule } from './order/order.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from './product/entities/product.entity';
 import { Farmer } from './farmer/entities/farmer.entity';
-import { User } from './auth/entities/user.entity';
+import { OrderProduct } from './order/entities/order-product.entity';
 
 @Module({
   imports: [
@@ -27,7 +25,7 @@ import { User } from './auth/entities/user.entity';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.SUPABASE_DB_URL,
-      entities: [Product, Farmer, User],
+      entities: [Product, Farmer, OrderProduct],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
@@ -38,7 +36,7 @@ import { User } from './auth/entities/user.entity';
     ProductModule,
     OrderModule
   ],
-  controllers: [AppController, AuthController],
-  providers: [AppService, AuthService, SupabaseService],
+  controllers: [AppController],
+  providers: [AppService, SupabaseService],
 })
 export class AppModule {}

@@ -17,26 +17,32 @@ export class ProductService {
     });
 
     // Önce ürünü veritabanına ekleyelim
+    const insertData = {
+      farmer_id: farmerId,
+      product_name: createProductDto.product_name,
+      product_katalog_name: createProductDto.product_katalog_name,
+      farmer_price: createProductDto.farmer_price,
+      stock_quantity: createProductDto.stock_quantity,
+      image_url: '', // null yerine boş string kullan
+      tarladan_commission: 5, // Varsayılan komisyon oranı
+      tarladan_price: Number(createProductDto.farmer_price) * 1.05, // Komisyon dahil fiyat
+    };
+    
+    console.log('Insert data:', insertData);
+    
     const { data: productData, error: productError } = await this.supabaseService.getServiceClient()
       .from('products')
-      .insert([
-        {
-          farmer_id: farmerId,
-          product_name: createProductDto.product_name,
-          product_katalog_name: createProductDto.product_katalog_name,
-          farmer_price: createProductDto.farmer_price,
-          stock_quantity: createProductDto.stock_quantity,
-          image_url: null, // İlk başta null
-          tarladan_commission: 5, // Varsayılan komisyon oranı
-          tarladan_price: Number(createProductDto.farmer_price) * 1.05, // Komisyon dahil fiyat
-        },
-      ])
+      .insert([insertData])
       .select()
       .single();
 
-    if (productError) throw productError;
+    console.log('Supabase insert result:', { productData, productError });
+    if (productError) {
+      console.error('Supabase insert error details:', productError);
+      throw productError;
+    }
 
-    let imageUrl = null;
+    let imageUrl = '';
     const productId = productData.id;
     console.log('Product created with ID:', productId);
 
@@ -115,13 +121,29 @@ export class ProductService {
   }
 
   async findAllByFarmer(farmerId: string) {
-    const { data, error } = await this.supabaseService.getServiceClient()
-      .from('products')
-      .select('*')
-      .eq('farmer_id', farmerId);
+    console.log('=== Product Service FindAllByFarmer Debug ===');
+    console.log('Farmer ID:', farmerId);
+    
+    try {
+      const { data, error } = await this.supabaseService.getServiceClient()
+        .from('products')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data;
+      console.log('Farmer products query result:', { data, error });
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Found products count:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('findAllByFarmer error:', error);
+      throw error;
+    }
   }
 
   async findOne(id: string) {
@@ -219,6 +241,7 @@ export class ProductService {
         stock_quantity: updateProductDto.stock_quantity,
         image_url: imageUrl,
         tarladan_price: Number(updateProductDto.farmer_price) * 1.05, // Komisyon oranını düzelttim
+        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .select()
@@ -309,6 +332,63 @@ export class ProductService {
     return { message: 'Ürün başarıyla silindi' };
     } catch (error) {
       console.error('Remove method error:', error);
+      throw error;
+    }
+  }
+
+  async testTableStructure(farmerId: string) {
+    console.log('=== Testing Table Structure ===');
+    console.log('Farmer ID:', farmerId);
+    
+    try {
+      // Önce mevcut ürünleri listele
+      const { data: existingProducts, error: selectError } = await this.supabaseService.getServiceClient()
+        .from('products')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .limit(1);
+
+      console.log('Existing products query result:', { existingProducts, selectError });
+
+      // Basit bir insert testi yap (sadece gerekli alanlarla)
+      const testData = {
+        farmer_id: farmerId,
+        product_name: 'TEST_PRODUCT_DELETE_ME',
+        product_katalog_name: 'test',
+        farmer_price: 1,
+        stock_quantity: 1,
+        tarladan_commission: 5,
+        tarladan_price: 1.05,
+      };
+
+      console.log('Test insert data:', testData);
+
+      const { data: insertResult, error: insertError } = await this.supabaseService.getServiceClient()
+        .from('products')
+        .insert([testData])
+        .select()
+        .single();
+
+      console.log('Test insert result:', { insertResult, insertError });
+
+      // Eğer başarılı olduysa test ürünü sil
+      if (insertResult && !insertError) {
+        const { error: deleteError } = await this.supabaseService.getServiceClient()
+          .from('products')
+          .delete()
+          .eq('id', insertResult.id);
+
+        console.log('Test product cleanup:', { deleteError });
+      }
+
+      return {
+        existingProducts,
+        selectError,
+        testInsert: { insertResult, insertError },
+        message: 'Table structure test completed'
+      };
+    } catch (error) {
+      console.error('Table structure test error:', error);
       throw error;
     }
   }

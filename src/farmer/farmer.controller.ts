@@ -49,6 +49,34 @@ export class FarmerController {
     }
   }
 
+  // Farmer profil bilgilerini getir
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Çiftçinin profil bilgilerini getir' })
+  async getFarmerProfile(@Req() req: any) {
+    try {
+      console.log('=== Farmer Profile Request ===');
+      console.log('Request user:', req.user);
+      
+      const farmerId = req.user.farmerId;
+      if (!farmerId) {
+        throw new Error('Farmer ID bulunamadı');
+      }
+      
+      return {
+        farmer_name: req.user.farmer_name || '',
+        farmer_last_name: req.user.farmer_last_name || '',
+        farmerId: farmerId
+      };
+    } catch (error) {
+      console.error('Farmer profile error:', error);
+      throw new HttpException(
+        error.message || 'Profil bilgileri getirilirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
   @Get(':id')
   async getFarmer(@Param('id') id: string) {
     return await this.farmerService.getFarmerById(id);
@@ -312,131 +340,90 @@ export class FarmerController {
     }
   }
 
-  // Test için - Auth bypass
-  @Get('store/info/test/:farmerId')
-  @ApiOperation({ summary: 'Test - Mağaza bilgilerini getir (auth bypass)' })
-  async getStoreInfoTest(@Param('farmerId') farmerId: string) {
-    try {
-      console.log('=== Test Store Info Request ===');
-      console.log('Farmer ID:', farmerId);
-      
-      return await this.farmerService.getStoreInfo(farmerId);
-    } catch (error) {
-      console.error('Test store info error:', error);
-      throw new HttpException(
-        error.message || 'Mağaza bilgileri getirilirken hata oluştu',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-  }
-
-  // Test için - Biyografi güncelle (auth bypass)
-  @Put('store/biography/test/:farmerId')
-  @ApiOperation({ summary: 'Test - Biyografi güncelle (auth bypass)' })
-  async updateBiographyTest(@Param('farmerId') farmerId: string, @Body() body: { farmer_biografi: string }) {
-    try {
-      console.log('=== Test Biography Update ===');
-      console.log('Farmer ID:', farmerId);
-      console.log('Biography:', body.farmer_biografi);
-      
-      return await this.farmerService.updateBiography(farmerId, body.farmer_biografi);
-    } catch (error) {
-      console.error('Test biography update error:', error);
-      throw new HttpException(
-        error.message || 'Biyografi güncellenirken hata oluştu',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-  }
-
-  // Test endpoint'i - farmer auth_id güncelle
-  @Put('update-auth/:farmerId/:authId')
-  async updateFarmerAuthId(
+  // Test için - farmer ID ile günlük gelir raporu
+  @Get('test/:farmerId/reports/daily/:date')
+  @ApiOperation({ summary: 'Test: Günlük gelir raporları' })
+  async getDailyIncomeReportsTest(
     @Param('farmerId') farmerId: string,
-    @Param('authId') authId: string,
-  ) {
-    console.log('=== Update Farmer Auth ID ===');
-    console.log('Farmer ID:', farmerId);
-    console.log('New Auth ID:', authId);
-    
-    try {
-      const result = await this.farmerService.updateFarmerAuthId(farmerId, authId);
-      return { success: true, message: 'Auth ID updated successfully', data: result };
-    } catch (error: any) {
-      console.error('Update auth ID error:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  // Gelir raporlarını getir
-  @Get('income-reports')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Farmer gelir raporlarını getir' })
-  async getFarmerIncomeReports(
-    @Req() req: any, 
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
-  ) {
-    try {
-      const farmerId = req.user.farmerId;
-      console.log('=== Get Farmer Income Reports ===');
-      console.log('Farmer ID:', farmerId);
-      console.log('Start Date:', startDate);
-      console.log('End Date:', endDate);
-      
-      return await this.farmerService.getFarmerIncomeReports(farmerId, startDate, endDate);
-    } catch (error: any) {
-      console.error('Get income reports error:', error);
-      throw new HttpException(
-        error.message || 'Gelir raporları getirilirken hata oluştu',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-  }
-
-  // Günlük gelir raporu getir
-  @Get('income-reports/daily/:date')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Farmer günlük gelir raporu getir' })
-  async getDailyIncomeReports(
-    @Req() req: any,
     @Param('date') date: string
   ) {
     try {
-      const farmerId = req.user.farmerId;
-      console.log('=== Get Daily Income Report ===');
-      console.log('Farmer ID:', farmerId);
-      console.log('Date:', date);
-      
       return await this.farmerService.getDailyIncomeReports(farmerId, date);
-    } catch (error: any) {
-      console.error('Get daily income report error:', error);
+    } catch (error) {
       throw new HttpException(
-        error.message || 'Günlük gelir raporu getirilirken hata oluştu',
+        error.message || 'Günlük gelir raporları getirilirken hata oluştu',
         HttpStatus.BAD_REQUEST
       );
     }
   }
 
-  // Test endpoint'i - Gelir raporları (auth bypass)
+  // Test için - farmer ID ile genel gelir raporları
   @Get('income-reports/test/:farmerId')
-  @ApiOperation({ summary: 'Test - Farmer gelir raporları getir (auth bypass)' })
-  async getFarmerIncomeReportsTest(
+  @ApiOperation({ summary: 'Test: Genel gelir raporları' })
+  async getIncomeReportsTest(
     @Param('farmerId') farmerId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
     try {
-      console.log('=== Test Get Farmer Income Reports ===');
+      console.log('=== Gelir Raporları Test Endpoint ===');
       console.log('Farmer ID:', farmerId);
       console.log('Start Date:', startDate);
       console.log('End Date:', endDate);
       
       return await this.farmerService.getFarmerIncomeReports(farmerId, startDate, endDate);
-    } catch (error: any) {
-      console.error('Test get income reports error:', error);
+    } catch (error) {
+      console.error('Gelir raporları test endpoint hatası:', error);
       throw new HttpException(
         error.message || 'Gelir raporları getirilirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  // Mağaza durumunu güncelle
+  @Put('store/activity')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Mağaza durumunu güncelle' })
+  @ApiResponse({ status: 200, description: 'Mağaza durumu başarıyla güncellendi.' })
+  @ApiResponse({ status: 400, description: 'Geçersiz veri.' })
+  async updateStoreActivity(@Req() req: any, @Body() body: { storeActivity: 'active' | 'nonactive' }) {
+    try {
+      const farmerId = req.user.farmerId;
+      if (!farmerId) {
+        throw new Error('Farmer ID bulunamadı');
+      }
+
+      const { storeActivity } = body;
+      if (!storeActivity || !['active', 'nonactive'].includes(storeActivity)) {
+        throw new Error('Geçerli bir mağaza durumu belirtmelisiniz (active/nonactive)');
+      }
+      
+      return await this.farmerService.updateStoreActivity(farmerId, storeActivity);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Mağaza durumu güncellenirken hata oluştu',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  // Mağaza durumunu getir
+  @Get('store/activity')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Mağaza durumunu getir' })
+  @ApiResponse({ status: 200, description: 'Mağaza durumu başarıyla getirildi.' })
+  async getStoreActivity(@Req() req: any) {
+    try {
+      const farmerId = req.user.farmerId;
+      if (!farmerId) {
+        throw new Error('Farmer ID bulunamadı');
+      }
+      
+      return await this.farmerService.getStoreActivity(farmerId);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Mağaza durumu getirilirken hata oluştu',
         HttpStatus.BAD_REQUEST
       );
     }

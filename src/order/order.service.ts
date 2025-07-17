@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { SupabaseService } from '../common/services/supabase.service';
-import { OrderProductWithProductDetails } from './entities/order-product.entity';
+import { OrderProduct, OrderProductWithProductDetails } from './entities/order-product.entity';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    @InjectRepository(OrderProduct)
+    private readonly orderProductRepository: Repository<OrderProduct>,
+    private readonly supabaseService: SupabaseService
+  ) {}
 
   async getFarmerOrders(farmerId: string): Promise<OrderProductWithProductDetails[]> {
     try {

@@ -920,4 +920,60 @@ export class FarmerService {
       throw error;
     }
   }
+
+  /**
+   * Farmer'ın mağaza durumunu günceller (active/nonactive)
+   * @param farmerId Farmer ID
+   * @param storeActivity Mağaza durumu (active/nonactive)
+   */
+  async updateStoreActivity(farmerId: string, storeActivity: 'active' | 'nonactive') {
+    try {
+      this.logger.debug(`Mağaza durumu güncelleniyor. Farmer ID: ${farmerId}, Durum: ${storeActivity}`);
+
+      const { data, error } = await this.supabaseService.getServiceClient()
+        .from('farmer')
+        .update({ farmer_store_activity: storeActivity })
+        .eq('farmer_id', farmerId)
+        .select('farmer_id, farmer_name, farmer_last_name, farmer_store_activity')
+        .single();
+
+      if (error) {
+        this.logger.error('Mağaza durumu güncelleme hatası:', error);
+        throw new Error(`Mağaza durumu güncellenirken hata oluştu: ${error.message}`);
+      }
+
+      this.logger.debug('Mağaza durumu başarıyla güncellendi:', data);
+      return data;
+    } catch (error) {
+      this.logger.error('Mağaza durumu güncelleme hatası:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Farmer'ın mağaza durumunu getirir
+   * @param farmerId Farmer ID
+   */
+  async getStoreActivity(farmerId: string) {
+    try {
+      this.logger.debug(`Mağaza durumu getiriliyor. Farmer ID: ${farmerId}`);
+
+      const { data, error } = await this.supabaseService.getServiceClient()
+        .from('farmer')
+        .select('farmer_id, farmer_name, farmer_last_name, farmer_store_activity')
+        .eq('farmer_id', farmerId)
+        .single();
+
+      if (error) {
+        this.logger.error('Mağaza durumu getirme hatası:', error);
+        throw new Error(`Mağaza durumu getirilemedi: ${error.message}`);
+      }
+
+      this.logger.debug('Mağaza durumu başarıyla getirildi:', data);
+      return data;
+    } catch (error) {
+      this.logger.error('Mağaza durumu getirme hatası:', error);
+      throw error;
+    }
+  }
 }
