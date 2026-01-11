@@ -29,16 +29,26 @@ import { Order } from './entities/order.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('SUPABASE_DB_URL') || configService.get<string>('DATABASE_URL'),
-        entities: [Product, Farmer, Order],
-        synchronize: false,
-        ssl: {
-          rejectUnauthorized: false,
-        },
-        logging: true,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const dbUrl = configService.get<string>('SUPABASE_DB_URL') || configService.get<string>('DATABASE_URL');
+        console.log('--- Database Config Check ---');
+        console.log('DB URL mevcut:', !!dbUrl);
+        if (dbUrl) {
+          console.log('DB URL protocol:', dbUrl.split(':')[0]);
+        }
+        console.log('---------------------------');
+
+        return {
+          type: 'postgres',
+          url: dbUrl,
+          entities: [Product, Farmer, Order],
+          synchronize: false,
+          ssl: {
+            rejectUnauthorized: false,
+          },
+          logging: true,
+        };
+      },
     }),
     MulterModule.register({
       dest: './uploads',
