@@ -6,9 +6,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   console.log('NestJS Uygulamasına İstek Ulaştı.');
-  
+
   // Global validation pipes
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
@@ -20,10 +20,16 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
-  
+
   // CORS ayarları
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3002'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3002',
+      'https://tarladan.app',
+      'https://www.tarladan.app',
+      'https://api.tarladan.app'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
