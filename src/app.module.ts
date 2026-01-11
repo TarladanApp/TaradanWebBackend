@@ -26,15 +26,19 @@ import { Order } from './entities/order.entity';
       ttl: 60,
       limit: 10,
     }]),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      url: process.env.SUPABASE_DB_URL,
-      entities: [Product, Farmer, Order],
-      synchronize: false,
-      ssl: {
-        rejectUnauthorized: false
-      },
-      logging: true,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        url: configService.get<string>('SUPABASE_DB_URL') || configService.get<string>('DATABASE_URL'),
+        entities: [Product, Farmer, Order],
+        synchronize: false,
+        ssl: {
+          rejectUnauthorized: false,
+        },
+        logging: true,
+      }),
     }),
     MulterModule.register({
       dest: './uploads',
@@ -48,4 +52,4 @@ import { Order } from './entities/order.entity';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
