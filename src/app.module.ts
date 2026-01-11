@@ -1,22 +1,26 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { MulterModule } from '@nestjs/platform-express';
+import { join } from 'path';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { FarmerModule } from './farmer/farmer.module';
-import { SupabaseService } from './common/services/supabase.service';
-import { AuthModule } from './auth/auth.module';
-import { ProductModule } from './product/product.module';
-import { OrderModule } from './order/order.module';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Product } from './product/entities/product.entity';
-import { Farmer } from './farmer/entities/farmer.entity';
-import { OrderProduct } from './order/entities/order-product.entity';
+import { AuthModule } from './modules/auth/auth.module';
+import { FarmerModule } from './modules/farmer/farmer.module';
+import { ProductModule } from './modules/product/product.module';
+import { OrderModule } from './modules/order/order.module';
+import { CommonModule } from './common/common.module';
+import { Product } from './entities/product.entity';
+import { Farmer } from './entities/farmer.entity';
+import { Order } from './entities/order.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
     }),
     ThrottlerModule.forRoot([{
       ttl: 60,
@@ -25,18 +29,23 @@ import { OrderProduct } from './order/entities/order-product.entity';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.SUPABASE_DB_URL,
-      entities: [Product, Farmer, OrderProduct],
+      entities: [Product, Farmer, Order],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
-      }
+      },
+      logging: true,
     }),
-    FarmerModule,
+    MulterModule.register({
+      dest: './uploads',
+    }),
+    CommonModule,
     AuthModule,
+    FarmerModule,
     ProductModule,
     OrderModule
   ],
   controllers: [AppController],
-  providers: [AppService, SupabaseService],
+  providers: [AppService],
 })
 export class AppModule {}

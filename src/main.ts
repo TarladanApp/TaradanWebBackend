@@ -8,12 +8,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   console.log('NestJS Uygulamasına İstek Ulaştı.');
-  // Global pipes
-  // app.useGlobalPipes(new ValidationPipe({
-  //   whitelist: true,
-  //   transform: true,
-  //   forbidNonWhitelisted: true,
-  // }));
+  
+  // Global validation pipes
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: false, // Multipart form data için false
+    skipMissingProperties: false,
+    enableDebugMessages: true,
+  }));
 
   // Security
   app.use(helmet());
