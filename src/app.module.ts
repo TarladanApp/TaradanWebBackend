@@ -54,6 +54,9 @@ import { Order } from './entities/order.entity';
           ssl: {
             rejectUnauthorized: false,
           },
+          extra: {
+            family: 4,
+          },
           logging: true,
         };
 
