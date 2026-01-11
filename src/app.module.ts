@@ -31,16 +31,24 @@ import { Order } from './entities/order.entity';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const dbUrl = configService.get<string>('SUPABASE_DB_URL') || configService.get<string>('DATABASE_URL');
+        const dbHost = configService.get<string>('DB_HOST');
+        const dbPort = configService.get<number>('DB_PORT') || 5432;
+        const dbUsername = configService.get<string>('DB_USERNAME');
+        const dbPassword = configService.get<string>('DB_PASSWORD');
+        const dbName = configService.get<string>('DB_NAME');
+
         console.log('--- Database Config Check ---');
-        console.log('DB URL mevcut:', !!dbUrl);
-        if (dbUrl) {
-          console.log('DB URL protocol:', dbUrl.split(':')[0]);
-        }
+        console.log('SUPABASE_DB_URL mevcut:', !!configService.get('SUPABASE_DB_URL'));
+        console.log('DATABASE_URL mevcut:', !!configService.get('DATABASE_URL'));
+        console.log('DB_HOST:', dbHost);
+        console.log('DB_PORT:', dbPort);
+        console.log('DB_USERNAME:', dbUsername);
+        console.log('DB_NAME:', dbName);
+        console.log('DB_PASSWORD mevcut:', !!dbPassword);
         console.log('---------------------------');
 
-        return {
+        const options: any = {
           type: 'postgres',
-          url: dbUrl,
           entities: [Product, Farmer, Order],
           synchronize: false,
           ssl: {
@@ -48,6 +56,18 @@ import { Order } from './entities/order.entity';
           },
           logging: true,
         };
+
+        if (dbUrl) {
+          options.url = dbUrl;
+        } else {
+          options.host = dbHost;
+          options.port = dbPort;
+          options.username = dbUsername;
+          options.password = dbPassword;
+          options.database = dbName;
+        }
+
+        return options;
       },
     }),
     MulterModule.register({
