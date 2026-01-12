@@ -37,16 +37,6 @@ import { Order } from './entities/order.entity';
         const dbPassword = configService.get<string>('DB_PASSWORD');
         const dbName = configService.get<string>('DB_NAME');
 
-        console.log('--- Database Config Check ---');
-        console.log('SUPABASE_DB_URL mevcut:', !!configService.get('SUPABASE_DB_URL'));
-        console.log('DATABASE_URL mevcut:', !!configService.get('DATABASE_URL'));
-        console.log('DB_HOST:', dbHost);
-        console.log('DB_PORT:', dbPort);
-        console.log('DB_USERNAME:', dbUsername);
-        console.log('DB_NAME:', dbName);
-        console.log('DB_PASSWORD mevcut:', !!dbPassword);
-        console.log('---------------------------');
-
         const options: any = {
           type: 'postgres',
           entities: [Product, Farmer, Order],
