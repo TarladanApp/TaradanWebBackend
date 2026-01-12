@@ -34,4 +34,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Start command
-CMD ["npm", "run", "start:prod"]
+CMD ["node", "dist/main"]

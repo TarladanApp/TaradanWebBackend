@@ -19,7 +19,10 @@ async function bootstrap() {
   }));
 
   // Security
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+  }));
 
   // CORS ayarları
   app.enableCors({
